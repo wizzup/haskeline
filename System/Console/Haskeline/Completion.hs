@@ -1,10 +1,12 @@
 module System.Console.Haskeline.Completion(
                             CompletionFunc,
                             Completion(..),
+                            CaseSensitivity(..),
                             noCompletion,
                             simpleCompletion,
                             -- * Word completion
                             completeWord,
+                            completeList,
                             completeWordWithPrev,
                             completeQuotedWord,
                             -- * Filename completion
@@ -17,6 +19,7 @@ module System.Console.Haskeline.Completion(
 import System.FilePath
 import Data.List(isPrefixOf)
 import Control.Monad(forM)
+import Data.Char(toLower)
 
 import System.Console.Haskeline.Directory
 import System.Console.Haskeline.Monads
@@ -41,6 +44,9 @@ data Completion = Completion {replacement  :: String, -- ^ Text to insert in lin
                             }
                     deriving (Eq, Ord, Show)
 
+-- | Case sensitivity for autocomplete-from-wordlist functions.
+data CaseSensitivity = MatchCase | IgnoreCase
+
 -- | Disable completion altogether.
 noCompletion :: Monad m => CompletionFunc m
 noCompletion (s,_) = return (s,[])
@@ -57,6 +63,37 @@ completeWord :: Monad m => Maybe Char
         -> (String -> m [Completion]) -- ^ Function to produce a list of possible completions
         -> CompletionFunc m
 completeWord esc ws = completeWordWithPrev esc ws . const
+
+-- | Autocomplete from list of words, following the same behaviour as
+-- 'completeWord' (completes to the immediate left of the cursor, word begins
+-- at newline or unescaped whitespace).
+--
+-- This function allows selecting case-sensitivity of the autocomplete.
+-- e.g. with 'IgnoreCase', @readf\<Tab\>@ will be expanded to
+-- @readFile@.
+completeList :: Monad m => Maybe Char -- ^ An optional escape character
+                        -> [Char]     -- ^ Characters which count as whitespace
+                        -> [String]   -- ^ List of autocompletable words
+                        -> CaseSensitivity -- ^ Case sensitivity
+                        -> CompletionFunc m
+completeList esc ws ml cs  = do
+    completeWordWithPrev esc ws (complFun ml)
+  where
+        complFun :: Monad m => [String] -> String -> String -> m [Completion]
+        complFun dic _ part = return . map simpleCompletion .
+                              selectMatches cs part $ dic
+
+        -- selectMatches performs an `isPrefixOf` filter on a dictionary;
+        -- for IgnoreCase, perfect matches will be listed higher.
+        selectMatches :: CaseSensitivity -> String -> [String] -> [String]
+        selectMatches MatchCase part dic = filter (isPrefixOf part) dic
+        selectMatches IgnoreCase part dic =
+            filter (isPrefixOf part) dic ++
+            filter (\d -> isPrefixOf (low part) (low d) &&
+                          (not $ isPrefixOf part d)) dic
+
+        low :: String -> String
+        low t = map toLower t
 
 -- | A custom 'CompletionFunc' which completes the word immediately to the left of the cursor,
 -- and takes into account the line contents to the left of the word.

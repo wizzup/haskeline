@@ -20,7 +20,7 @@ Homepage:       https://github.com/judah/haskeline
 Bug-Reports:    https://github.com/judah/haskeline/issues
 Stability:      Stable
 Build-Type:     Simple
-extra-source-files: examples/Test.hs Changelog includes/*.h
+extra-source-files: examples/Test.hs examples/Case.hs Changelog includes/*.h
 
 source-repository head
     type: git
